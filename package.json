@@ -10,6 +10,7 @@
     "seed:super-admin": "tsx scripts/seedSuperAdmin.ts"
   },
   "dependencies": {
+    "archiver": "^8.0.0",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.10.0",
     "exceljs": "^4.4.0",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/archiver": "^8.0.0",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",

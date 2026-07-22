@@ -5,6 +5,7 @@ import { Organization } from "@/models/Organization";
 import { User } from "@/models/User";
 import { ROLES } from "@/lib/constants";
 import { DashboardShell, StatCard } from "@/components/dashboard/DashboardShell";
+import { SUPER_ADMIN_NAV } from "@/components/dashboard/nav";
 
 export default async function SuperAdminDashboard() {
   const session = await auth();
@@ -20,7 +21,11 @@ export default async function SuperAdminDashboard() {
   ]);
 
   return (
-    <DashboardShell title="Super Admin Dashboard" subtitle={session.user.name ?? session.user.email ?? ""}>
+    <DashboardShell
+      title="Super Admin Dashboard"
+      subtitle={session.user.name ?? session.user.email ?? ""}
+      nav={SUPER_ADMIN_NAV}
+    >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatCard label="Organizations" value={orgCount} />
         <StatCard label="Organization Admins" value={orgAdminCount} />

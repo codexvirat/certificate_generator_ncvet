@@ -1,10 +1,12 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { connectDB } from "@/lib/db";
 import { ExcelAssignment } from "@/models/ExcelAssignment";
 import { Candidate } from "@/models/Candidate";
 import { ROLES } from "@/lib/constants";
 import { DashboardShell, StatCard } from "@/components/dashboard/DashboardShell";
+import { GENERATOR_NAV } from "@/components/dashboard/nav";
 
 // Generator Admin dashboard: assigned batch + progress only. No candidate
 // create/edit affordances exist anywhere in this route group by design.
@@ -31,7 +33,11 @@ export default async function GeneratorDashboard() {
   );
 
   return (
-    <DashboardShell title="Generator Dashboard" subtitle={session.user.name ?? session.user.email ?? ""}>
+    <DashboardShell
+      title="Generator Dashboard"
+      subtitle={session.user.name ?? session.user.email ?? ""}
+      nav={GENERATOR_NAV}
+    >
       {batchStats.length === 0 && (
         <p className="text-sm text-zinc-500">No batch has been assigned to you yet.</p>
       )}
@@ -44,9 +50,17 @@ export default async function GeneratorDashboard() {
           >
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-medium text-zinc-900 dark:text-zinc-50">{batch.batchCode}</h2>
-              <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium capitalize text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                {batch.status.replace("_", " ")}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium capitalize text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                  {batch.status.replace("_", " ")}
+                </span>
+                <Link
+                  href={`/generator/batches/${batch._id.toString()}`}
+                  className="text-sm underline"
+                >
+                  Open batch
+                </Link>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <StatCard label="Total Candidates" value={total} />

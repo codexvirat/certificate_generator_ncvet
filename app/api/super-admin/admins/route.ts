@@ -7,6 +7,20 @@ import { Organization } from "@/models/Organization";
 import { AuditLog } from "@/models/AuditLog";
 import { ROLES } from "@/lib/constants";
 
+export async function GET() {
+  const actor = await requireActor();
+  if (!isActor(actor)) return actor;
+  if (actor.role !== ROLES.SUPER_ADMIN) {
+    return NextResponse.json({ error: "Super Admin only" }, { status: 403 });
+  }
+  await connectDB();
+  const admins = await User.find({ role: ROLES.ORG_ADMIN })
+    .select("-password")
+    .populate("organizationId", "name")
+    .sort({ createdAt: -1 });
+  return NextResponse.json({ admins });
+}
+
 // Creates an ORG_ADMIN account for an organization. SUPER_ADMIN only.
 export async function POST(req: NextRequest) {
   const actor = await requireActor();

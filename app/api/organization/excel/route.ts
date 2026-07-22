@@ -6,6 +6,22 @@ import { importCandidatesFromExcel } from "@/services/excelService";
 import { uploadBuffer } from "@/lib/cloudinary";
 import { ROLES, BATCH_STATUS } from "@/lib/constants";
 
+export async function GET() {
+  const actor = await requireActor();
+  if (!isActor(actor)) return actor;
+  if (actor.role !== ROLES.ORG_ADMIN) {
+    return NextResponse.json({ error: "Organization Admin only" }, { status: 403 });
+  }
+
+  await connectDB();
+  const batches = await ExcelAssignment.find({ organizationId: actor.organizationId })
+    .populate("generatorId", "name email")
+    .populate("templateId", "name")
+    .sort({ createdAt: -1 });
+
+  return NextResponse.json({ batches });
+}
+
 // Creates a new batch (ExcelAssignment) and imports its Candidate rows.
 // ORG_ADMIN only -- this is the sole entry point that creates Candidate documents.
 export async function POST(req: NextRequest) {

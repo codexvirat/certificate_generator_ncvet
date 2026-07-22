@@ -112,3 +112,34 @@ export async function importCandidatesFromExcel(params: {
 
   return { assignment, count: inserted.length };
 }
+
+/**
+ * Freezes a batch so no further photo uploads or generation can happen --
+ * per the spec's batch lifecycle (Draft -> Assigned -> In Progress -> Generated -> Locked).
+ * ORG_ADMIN / SUPER_ADMIN only.
+ */
+export async function lockBatch(params: { actor: Actor; assignmentId: string; organizationId: string }) {
+  assertCan(params.actor.role, ACTIONS.UPLOAD_EXCEL);
+  await connectDB();
+
+  const assignment = await ExcelAssignment.findOne({
+    _id: params.assignmentId,
+    organizationId: params.organizationId,
+  });
+  if (!assignment) throw new Error("Batch not found for this organization");
+
+  assignment.status = BATCH_STATUS.LOCKED;
+  assignment.lockedAt = new Date();
+  await assignment.save();
+
+  await AuditLog.create({
+    organizationId: params.organizationId,
+    userId: params.actor.id,
+    role: params.actor.role,
+    action: "batch.lock",
+    targetType: "ExcelAssignment",
+    targetId: assignment._id,
+  });
+
+  return assignment;
+}

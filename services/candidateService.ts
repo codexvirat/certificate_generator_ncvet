@@ -120,6 +120,13 @@ export async function markCandidateGenerated(params: {
     assignmentId: assignment._id,
     generated: true,
   });
+  // Batch lifecycle: Assigned -> In Progress (first generation) -> Generated (all done).
+  if (assignment.status === BATCH_STATUS.ASSIGNED) {
+    assignment.status = BATCH_STATUS.IN_PROGRESS;
+  }
+  if (assignment.generatedCount === assignment.totalRecords && assignment.totalRecords > 0) {
+    assignment.status = BATCH_STATUS.GENERATED;
+  }
   await assignment.save();
 
   await AuditLog.create({
