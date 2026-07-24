@@ -1,11 +1,5 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error("Missing MONGODB_URI environment variable");
-}
-
 type MongooseCache = {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
@@ -22,8 +16,16 @@ global._mongooseCache = cache;
 export async function connectDB(): Promise<typeof mongoose> {
   if (cache.conn) return cache.conn;
 
+  // Checked here (not at module load) so importing this file -- e.g. during
+  // `next build`'s page-data collection, before runtime env vars exist --
+  // never crashes the build. Only actually connecting requires the var.
+  const MONGODB_URI = process.env.MONGODB_URI;
+  if (!MONGODB_URI) {
+    throw new Error("Missing MONGODB_URI environment variable");
+  }
+
   if (!cache.promise) {
-    cache.promise = mongoose.connect(MONGODB_URI as string, {
+    cache.promise = mongoose.connect(MONGODB_URI, {
       bufferCommands: false,
     });
   }
