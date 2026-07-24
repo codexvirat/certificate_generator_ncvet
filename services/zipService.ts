@@ -1,7 +1,7 @@
 import { ZipArchive } from "archiver";
 import type { CandidateDoc } from "@/models/Candidate";
 
-/** Streams a ZIP of each candidate's generated PDF, fetched from Cloudinary. */
+/** Streams a ZIP of each candidate's generated PDF, fetched from local storage. */
 export async function buildCertificatesZip(
   candidates: Array<Pick<CandidateDoc, "certificateNo" | "pdfUrl">>
 ): Promise<Buffer> {

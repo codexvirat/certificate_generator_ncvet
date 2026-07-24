@@ -23,6 +23,10 @@
 # misc
 .DS_Store
 *.pem
+~$*
+
+# stray local test output
+/generated-certificate.pdf
 
 # debug
 npm-debug.log*
@@ -34,7 +38,8 @@ yarn-error.log*
 .env*
 !.env.example
 
-# local scratch uploads (real storage is Cloudinary/S3)
+# local file storage (served by app/uploads/[...path]/route.ts) -- persist
+# this directory on the VPS across deploys, don't commit uploaded content
 /uploads/*
 !/uploads/**/.gitkeep
 

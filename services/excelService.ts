@@ -5,7 +5,7 @@ import { ExcelAssignment } from "@/models/ExcelAssignment";
 import { AuditLog } from "@/models/AuditLog";
 import { ACTIONS, assertCan } from "@/lib/permissions";
 import { generateVerificationId } from "@/utils/tokens";
-import { BATCH_STATUS } from "@/lib/constants";
+import { BATCH_STATUS, ROLES } from "@/lib/constants";
 import type { Role } from "@/lib/constants";
 
 type Actor = { id: string; role: Role; organizationId: string | null };
@@ -14,6 +14,8 @@ const REQUIRED_COLUMNS = [
   "Certificate No",
   "Name",
   "Father Name",
+  "DOB",
+  "Enrolment No",
   "Course",
   "Duration",
   "Grade",
@@ -26,7 +28,10 @@ const REQUIRED_COLUMNS = [
 /**
  * The ONLY code path allowed to create Candidate documents. Only reachable from
  * ORG_ADMIN / SUPER_ADMIN API routes -- GENERATOR_ADMIN never calls this.
- * Rows come solely from the assigned Excel sheet; there is no manual "add candidate" form.
+ * Rows come solely from an Excel sheet; there is no manual "add candidate" form.
+ * Also the path used to add more candidates to an already-created batch (any
+ * status except LOCKED) -- totalRecords is incremented, never overwritten, so
+ * this is safe to call repeatedly against the same assignment.
  */
 export async function importCandidatesFromExcel(params: {
   actor: Actor;
@@ -43,8 +48,8 @@ export async function importCandidatesFromExcel(params: {
     organizationId: params.organizationId,
   });
   if (!assignment) throw new Error("Batch not found for this organization");
-  if (assignment.status !== BATCH_STATUS.DRAFT) {
-    throw new Error(`Cannot import into a batch with status "${assignment.status}"`);
+  if (assignment.status === BATCH_STATUS.LOCKED) {
+    throw new Error("Batch is locked -- no further candidates can be added");
   }
 
   const workbook = new ExcelJS.Workbook();
@@ -79,6 +84,8 @@ export async function importCandidatesFromExcel(params: {
       certificateNo,
       name: String(get("Name") ?? "").trim(),
       fatherName: String(get("Father Name") ?? "").trim(),
+      dob: get("DOB") ? new Date(get("DOB") as string) : null,
+      enrollmentNo: String(get("Enrolment No") ?? "").trim(),
       course: String(get("Course") ?? "").trim(),
       duration: String(get("Duration") ?? "").trim(),
       grade: String(get("Grade") ?? "").trim(),
@@ -94,10 +101,27 @@ export async function importCandidatesFromExcel(params: {
 
   if (rows.length === 0) throw new Error("No candidate rows found in Excel");
 
-  const inserted = await Candidate.insertMany(rows, { ordered: true });
+  let inserted;
+  try {
+    inserted = await Candidate.insertMany(rows, { ordered: true });
+  } catch (err) {
+    // insertMany({ordered:true}) may have already persisted rows before the
+    // one that failed (e.g. a duplicate Certificate No partway through) --
+    // clean up exactly those rows (and only those, never pre-existing ones)
+    // so a retry with a fixed file doesn't collide with leftover partial rows.
+    const partiallyInserted = (err as { insertedDocs?: Array<{ _id: unknown }> })?.insertedDocs ?? [];
+    if (partiallyInserted.length > 0) {
+      await Candidate.deleteMany({ _id: { $in: partiallyInserted.map((d) => d._id) } });
+    }
+    throw err;
+  }
 
-  assignment.totalRecords = inserted.length;
-  assignment.excelName = assignment.excelName;
+  assignment.totalRecords += inserted.length;
+  // Adding more (ungenerated) candidates to a batch previously marked fully
+  // GENERATED means it's no longer fully done -- reflect that in status.
+  if (assignment.status === BATCH_STATUS.GENERATED) {
+    assignment.status = BATCH_STATUS.IN_PROGRESS;
+  }
   await assignment.save();
 
   await AuditLog.create({
@@ -114,18 +138,52 @@ export async function importCandidatesFromExcel(params: {
 }
 
 /**
+ * Deletes a batch and all of its candidates. ORG_ADMIN (own org) or SUPER_ADMIN
+ * (any org). Deliberately allowed regardless of status -- callers should warn
+ * the user in the UI if certificates were already generated, since those
+ * verification links stop resolving once the candidate rows are gone.
+ */
+export async function deleteBatch(params: { actor: Actor; assignmentId: string; organizationId: string | null }) {
+  assertCan(params.actor.role, ACTIONS.UPLOAD_EXCEL);
+  await connectDB();
+
+  const query =
+    params.actor.role === ROLES.SUPER_ADMIN
+      ? { _id: params.assignmentId }
+      : { _id: params.assignmentId, organizationId: params.organizationId };
+  const assignment = await ExcelAssignment.findOne(query);
+  if (!assignment) throw new Error("Batch not found for this organization");
+
+  const { deletedCount: candidateCount } = await Candidate.deleteMany({ assignmentId: assignment._id });
+  await ExcelAssignment.deleteOne({ _id: assignment._id });
+
+  await AuditLog.create({
+    organizationId: assignment.organizationId,
+    userId: params.actor.id,
+    role: params.actor.role,
+    action: "batch.delete",
+    targetType: "ExcelAssignment",
+    targetId: assignment._id,
+    metadata: { batchCode: assignment.batchCode, candidateCount, generatedCount: assignment.generatedCount },
+  });
+
+  return { batchCode: assignment.batchCode, candidateCount };
+}
+
+/**
  * Freezes a batch so no further photo uploads or generation can happen --
  * per the spec's batch lifecycle (Draft -> Assigned -> In Progress -> Generated -> Locked).
  * ORG_ADMIN / SUPER_ADMIN only.
  */
-export async function lockBatch(params: { actor: Actor; assignmentId: string; organizationId: string }) {
+export async function lockBatch(params: { actor: Actor; assignmentId: string; organizationId: string | null }) {
   assertCan(params.actor.role, ACTIONS.UPLOAD_EXCEL);
   await connectDB();
 
-  const assignment = await ExcelAssignment.findOne({
-    _id: params.assignmentId,
-    organizationId: params.organizationId,
-  });
+  const query =
+    params.actor.role === ROLES.SUPER_ADMIN
+      ? { _id: params.assignmentId }
+      : { _id: params.assignmentId, organizationId: params.organizationId };
+  const assignment = await ExcelAssignment.findOne(query);
   if (!assignment) throw new Error("Batch not found for this organization");
 
   assignment.status = BATCH_STATUS.LOCKED;

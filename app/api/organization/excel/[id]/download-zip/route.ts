@@ -9,7 +9,7 @@ import { ROLES } from "@/lib/constants";
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const actor = await requireActor();
   if (!isActor(actor)) return actor;
-  if (actor.role !== ROLES.ORG_ADMIN) {
+  if (actor.role !== ROLES.ORG_ADMIN && actor.role !== ROLES.SUPER_ADMIN) {
     return NextResponse.json({ error: "Organization Admin only" }, { status: 403 });
   }
 
@@ -17,7 +17,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
     await connectDB();
 
-    const assignment = await ExcelAssignment.findOne({ _id: id, organizationId: actor.organizationId });
+    const query = actor.role === ROLES.SUPER_ADMIN ? { _id: id } : { _id: id, organizationId: actor.organizationId };
+    const assignment = await ExcelAssignment.findOne(query);
     if (!assignment) return NextResponse.json({ error: "Batch not found" }, { status: 404 });
 
     const candidates = await Candidate.find({ assignmentId: id, generated: true }).select(

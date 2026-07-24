@@ -3,7 +3,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { ORG_ADMIN_NAV } from "@/components/dashboard/nav";
+import { SUPER_ADMIN_NAV } from "@/components/dashboard/nav";
 import {
   inputClass,
   cardClass,
@@ -33,10 +33,11 @@ type Assignment = {
   status: string;
   totalRecords: number;
   generatedCount: number;
+  organizationId: { _id: string; name: string } | null;
   generatorId: Generator | null;
 };
 
-export default function BatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function SuperAdminBatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
 
@@ -51,15 +52,21 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
 
   async function load() {
     setLoading(true);
-    const [batchRes, generatorsRes] = await Promise.all([
-      fetch(`/api/organization/excel/${id}`),
-      fetch("/api/organization/generators"),
-    ]);
+    const batchRes = await fetch(`/api/organization/excel/${id}`);
     const batchData = await batchRes.json();
-    const generatorsData = await generatorsRes.json();
-    setAssignment(batchData.assignment ?? null);
+    const loadedAssignment: Assignment | null = batchData.assignment ?? null;
+    setAssignment(loadedAssignment);
     setCandidates(batchData.candidates ?? []);
-    setGenerators(generatorsData.generators ?? []);
+
+    if (loadedAssignment?.organizationId?._id) {
+      const generatorsRes = await fetch(
+        `/api/organization/generators?organizationId=${loadedAssignment.organizationId._id}`
+      );
+      const generatorsData = await generatorsRes.json();
+      setGenerators(generatorsData.generators ?? []);
+    } else {
+      setGenerators([]);
+    }
     setLoading(false);
   }
 
@@ -153,12 +160,12 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
       setError(data.error ?? "Failed to delete batch");
       return;
     }
-    router.push("/organization/excel");
+    router.push("/super-admin/excel");
   }
 
   if (loading) {
     return (
-      <DashboardShell title="Batch" nav={ORG_ADMIN_NAV}>
+      <DashboardShell title="Batch" nav={SUPER_ADMIN_NAV}>
         <p className="text-sm text-zinc-500">Loading...</p>
       </DashboardShell>
     );
@@ -166,14 +173,18 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
 
   if (!assignment) {
     return (
-      <DashboardShell title="Batch" nav={ORG_ADMIN_NAV}>
+      <DashboardShell title="Batch" nav={SUPER_ADMIN_NAV}>
         <p className="text-sm text-red-600">Batch not found.</p>
       </DashboardShell>
     );
   }
 
   return (
-    <DashboardShell title={`Batch ${assignment.batchCode}`} nav={ORG_ADMIN_NAV}>
+    <DashboardShell
+      title={`Batch ${assignment.batchCode}`}
+      subtitle={assignment.organizationId?.name}
+      nav={SUPER_ADMIN_NAV}
+    >
       <div className={`${cardClass} mb-6`}>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">

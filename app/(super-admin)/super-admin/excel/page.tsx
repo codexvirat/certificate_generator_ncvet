@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { ORG_ADMIN_NAV } from "@/components/dashboard/nav";
+import { SUPER_ADMIN_NAV } from "@/components/dashboard/nav";
 import {
   inputClass,
   labelClass,
@@ -15,7 +15,8 @@ import {
   badgeClass,
 } from "@/components/ui/classNames";
 
-type Template = { _id: string; name: string };
+type Organization = { _id: string; name: string };
+type Template = { _id: string; name: string; organizationId: { _id: string; name: string } | null };
 type Batch = {
   _id: string;
   batchCode: string;
@@ -23,30 +24,36 @@ type Batch = {
   status: string;
   totalRecords: number;
   generatedCount: number;
+  organizationId: { name: string } | null;
   generatorId: { name: string } | null;
   templateId: { name: string } | null;
 };
 
-export default function ExcelBatchesPage() {
+export default function SuperAdminExcelBatchesPage() {
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [organizationId, setOrganizationId] = useState("");
   const [batchCode, setBatchCode] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
   async function load() {
     setLoading(true);
-    const [batchesRes, templatesRes] = await Promise.all([
+    const [batchesRes, orgsRes, templatesRes] = await Promise.all([
       fetch("/api/organization/excel"),
+      fetch("/api/super-admin/organizations"),
       fetch("/api/organization/templates"),
     ]);
     const batchesData = await batchesRes.json();
+    const orgsData = await orgsRes.json();
     const templatesData = await templatesRes.json();
     setBatches(batchesData.batches ?? []);
+    setOrganizations(orgsData.organizations ?? []);
     setTemplates(templatesData.templates ?? []);
     setLoading(false);
   }
@@ -54,6 +61,8 @@ export default function ExcelBatchesPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const templatesForOrg = templates.filter((t) => t.organizationId?._id === organizationId);
 
   async function handleDelete(batch: Batch) {
     const warning =
@@ -78,10 +87,15 @@ export default function ExcelBatchesPage() {
       setError("Please choose an Excel file");
       return;
     }
+    if (!organizationId) {
+      setError("Please choose an organization");
+      return;
+    }
     setSubmitting(true);
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("organizationId", organizationId);
     formData.append("templateId", templateId);
     formData.append("batchCode", batchCode);
 
@@ -98,7 +112,7 @@ export default function ExcelBatchesPage() {
   }
 
   return (
-    <DashboardShell title="Excel Batches" nav={ORG_ADMIN_NAV}>
+    <DashboardShell title="Excel Batches (all organizations)" nav={SUPER_ADMIN_NAV}>
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className={cardClass}>
           <h2 className="mb-4 font-medium text-zinc-900 dark:text-zinc-50">Batches</h2>
@@ -112,6 +126,7 @@ export default function ExcelBatchesPage() {
                 <thead>
                   <tr>
                     <th className={thClass}>Batch</th>
+                    <th className={thClass}>Organization</th>
                     <th className={thClass}>Template</th>
                     <th className={thClass}>Generator</th>
                     <th className={thClass}>Status</th>
@@ -123,6 +138,7 @@ export default function ExcelBatchesPage() {
                   {batches.map((batch) => (
                     <tr key={batch._id}>
                       <td className={tdClass}>{batch.batchCode}</td>
+                      <td className={tdClass}>{batch.organizationId?.name ?? "-"}</td>
                       <td className={tdClass}>{batch.templateId?.name ?? "-"}</td>
                       <td className={tdClass}>{batch.generatorId?.name ?? "Unassigned"}</td>
                       <td className={tdClass}>
@@ -133,7 +149,7 @@ export default function ExcelBatchesPage() {
                       </td>
                       <td className={tdClass}>
                         <div className="flex gap-3">
-                          <Link href={`/organization/excel/${batch._id}`} className="text-sm underline">
+                          <Link href={`/super-admin/excel/${batch._id}`} className="text-sm underline">
                             Manage
                           </Link>
                           <button
@@ -155,6 +171,24 @@ export default function ExcelBatchesPage() {
         <form onSubmit={handleSubmit} className={cardClass}>
           <h2 className="mb-4 font-medium text-zinc-900 dark:text-zinc-50">Upload Excel Batch</h2>
 
+          <label className={labelClass}>Organization</label>
+          <select
+            required
+            className={`${inputClass} mb-3`}
+            value={organizationId}
+            onChange={(e) => {
+              setOrganizationId(e.target.value);
+              setTemplateId("");
+            }}
+          >
+            <option value="">Select organization</option>
+            {organizations.map((org) => (
+              <option key={org._id} value={org._id}>
+                {org.name}
+              </option>
+            ))}
+          </select>
+
           <label className={labelClass}>Batch Code</label>
           <input
             required
@@ -167,12 +201,13 @@ export default function ExcelBatchesPage() {
           <label className={labelClass}>Certificate Template</label>
           <select
             required
+            disabled={!organizationId}
             className={`${inputClass} mb-3`}
             value={templateId}
             onChange={(e) => setTemplateId(e.target.value)}
           >
             <option value="">Select template</option>
-            {templates.map((template) => (
+            {templatesForOrg.map((template) => (
               <option key={template._id} value={template._id}>
                 {template.name}
               </option>

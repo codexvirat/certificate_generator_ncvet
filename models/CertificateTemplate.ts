@@ -29,9 +29,10 @@ const certificateTemplateSchema = new Schema(
     organizationId: { type: Schema.Types.ObjectId, ref: "Organization", required: true },
     name: { type: String, required: true, trim: true },
     background: { type: String, required: true }, // uploaded template image/PDF url
-    signature: { type: String, default: null },
-    qrPosition: { type: positionSchema, required: true },
+    signature: { type: String, default: null }, // uploaded signature image url, drawn at signaturePosition
+    qrPosition: { type: positionSchema, default: null }, // omit to skip drawing a QR entirely
     photoPosition: { type: positionSchema, required: true },
+    signaturePosition: { type: positionSchema, default: null },
     textFields: { type: [textFieldSchema], default: [] },
     version: { type: Number, default: 1 },
     isActive: { type: Boolean, default: true },

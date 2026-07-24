@@ -6,7 +6,7 @@ import { ROLES } from "@/lib/constants";
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const actor = await requireActor();
   if (!isActor(actor)) return actor;
-  if (actor.role !== ROLES.ORG_ADMIN || !actor.organizationId) {
+  if (actor.role !== ROLES.ORG_ADMIN && actor.role !== ROLES.SUPER_ADMIN) {
     return NextResponse.json({ error: "Organization Admin only" }, { status: 403 });
   }
 

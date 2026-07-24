@@ -5,13 +5,16 @@ import { ExcelAssignment } from "@/models/ExcelAssignment";
 import { User } from "@/models/User";
 import { ROLES, BATCH_STATUS } from "@/lib/constants";
 
-// Assigns an already-imported batch to a GENERATOR_ADMIN. ORG_ADMIN only.
+// Assigns an already-imported batch to a GENERATOR_ADMIN. ORG_ADMIN (own org) or SUPER_ADMIN (any org).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const actor = await requireActor();
   if (!isActor(actor)) return actor;
 
-  if (actor.role !== ROLES.ORG_ADMIN || !actor.organizationId) {
-    return NextResponse.json({ error: "Only an Organization Admin can assign a batch" }, { status: 403 });
+  if (actor.role !== ROLES.ORG_ADMIN && actor.role !== ROLES.SUPER_ADMIN) {
+    return NextResponse.json(
+      { error: "Only an Organization Admin or Super Admin can assign a batch" },
+      { status: 403 }
+    );
   }
 
   try {
@@ -20,7 +23,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     await connectDB();
 
-    const assignment = await ExcelAssignment.findOne({ _id: id, organizationId: actor.organizationId });
+    const query =
+      actor.role === ROLES.SUPER_ADMIN ? { _id: id } : { _id: id, organizationId: actor.organizationId };
+    const assignment = await ExcelAssignment.findOne(query);
     if (!assignment) return NextResponse.json({ error: "Batch not found" }, { status: 404 });
     if (assignment.status !== BATCH_STATUS.DRAFT) {
       return NextResponse.json({ error: `Batch already in status "${assignment.status}"` }, { status: 400 });
@@ -28,7 +33,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const generator = await User.findOne({
       _id: generatorId,
-      organizationId: actor.organizationId,
+      organizationId: assignment.organizationId,
       role: ROLES.GENERATOR_ADMIN,
     });
     if (!generator) {

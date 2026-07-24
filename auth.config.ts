@@ -11,6 +11,13 @@ export const authConfig: NextAuthConfig = {
   session: { strategy: "jwt" },
   providers: [],
   callbacks: {
+    session({ session, token }) {
+      session.user.id = token.id as string;
+      session.user.role = token.role;
+      session.user.organizationId = token.organizationId;
+      session.user.status = token.status;
+      return session;
+    },
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
       const user = auth?.user;

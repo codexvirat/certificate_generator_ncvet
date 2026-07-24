@@ -7,14 +7,20 @@ import { sha256 } from "@/utils/tokens";
 
 // Fields available for {{KEY}} substitution in a template's textFields.
 function fieldValue(key: string, candidate: CandidateDoc): string {
+  // "short" month (e.g. "21 Sep 2002") -- "long" month names like "September"
+  // were long enough to overflow the DOB/date blanks into the next field.
   const formatDate = (d: Date | null | undefined) =>
-    d ? new Date(d).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" }) : "";
+    d ? new Date(d).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" }) : "";
 
   switch (key) {
     case "NAME":
       return candidate.name;
     case "FATHER_NAME":
       return candidate.fatherName ?? "";
+    case "DOB":
+      return formatDate(candidate.dob);
+    case "ENROLLMENT_NO":
+      return candidate.enrollmentNo ?? "";
     case "COURSE":
       return candidate.course;
     case "DURATION":
@@ -96,15 +102,31 @@ export async function generateCertificatePdf(params: {
   });
 
   // QR code -> non-guessable verification URL, never raw candidate data.
-  const qrBytes = await generateQrPng(candidate.verificationId);
-  const qrImage = await pdfDoc.embedPng(qrBytes);
-  const qrSize = template.qrPosition.size ?? 80;
-  page.drawImage(qrImage, {
-    x: template.qrPosition.x,
-    y: template.qrPosition.y,
-    width: qrSize,
-    height: qrSize,
-  });
+  // Templates may opt out of the QR overlay entirely (e.g. a background that
+  // already has its own printed QR artwork, or a design that doesn't want one).
+  if (template.qrPosition) {
+    const qrBytes = await generateQrPng(candidate.verificationId);
+    const qrImage = await pdfDoc.embedPng(qrBytes);
+    const qrSize = template.qrPosition.size ?? 80;
+    page.drawImage(qrImage, {
+      x: template.qrPosition.x,
+      y: template.qrPosition.y,
+      width: qrSize,
+      height: qrSize,
+    });
+  }
+
+  // Signature image, drawn once per template (same signatory on every certificate).
+  if (template.signature && template.signaturePosition) {
+    const signatureBytes = await fetchBytes(template.signature);
+    const signatureImage = await embedImageAuto(pdfDoc, signatureBytes);
+    page.drawImage(signatureImage, {
+      x: template.signaturePosition.x,
+      y: template.signaturePosition.y,
+      width: template.signaturePosition.width ?? 150,
+      height: template.signaturePosition.height ?? 60,
+    });
+  }
 
   const pdfBytes = await pdfDoc.save();
   return {

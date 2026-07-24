@@ -2,7 +2,9 @@ export const SUPER_ADMIN_NAV = [
   { href: "/super-admin", label: "Dashboard" },
   { href: "/super-admin/organizations", label: "Organizations" },
   { href: "/super-admin/admins", label: "Org Admins" },
-  { href: "/super-admin/generators", label: "Batches" },
+  { href: "/super-admin/generators", label: "Generator Admins" },
+  { href: "/super-admin/templates", label: "Templates" },
+  { href: "/super-admin/excel", label: "Batches" },
   { href: "/super-admin/audit-logs", label: "Audit Logs" },
 ];
 

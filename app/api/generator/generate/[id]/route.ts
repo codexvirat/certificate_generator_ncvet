@@ -7,7 +7,7 @@ import { CertificateTemplate } from "@/models/CertificateTemplate";
 import { GeneratedCertificate } from "@/models/GeneratedCertificate";
 import { generateCertificatePdf } from "@/services/certificateService";
 import { markCandidateGenerated } from "@/services/candidateService";
-import { uploadBuffer } from "@/lib/cloudinary";
+import { uploadBuffer } from "@/lib/storage";
 
 // Generates (or regenerates, per the versioning policy) a candidate's certificate PDF.
 // Scoping and the "own assigned batch, not locked" checks happen inside

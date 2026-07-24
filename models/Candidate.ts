@@ -13,6 +13,8 @@ const candidateSchema = new Schema(
     certificateNo: { type: String, required: true, trim: true },
     name: { type: String, required: true, trim: true },
     fatherName: { type: String, default: "" },
+    dob: { type: Date, default: null },
+    enrollmentNo: { type: String, default: "" },
     course: { type: String, required: true },
     duration: { type: String, default: "" },
     grade: { type: String, default: "" },

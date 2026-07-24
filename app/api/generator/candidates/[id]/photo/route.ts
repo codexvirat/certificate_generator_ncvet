@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireActor, isActor, toErrorResponse } from "@/lib/apiAuth";
 import { uploadCandidatePhoto } from "@/services/candidateService";
-import { uploadBuffer } from "@/lib/cloudinary";
+import { uploadBuffer } from "@/lib/storage";
 import sharp from "sharp";
 
 // GENERATOR_ADMIN's photo upload. This is the ONLY write this role has onto a

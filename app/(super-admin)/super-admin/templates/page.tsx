@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { ORG_ADMIN_NAV } from "@/components/dashboard/nav";
+import { SUPER_ADMIN_NAV } from "@/components/dashboard/nav";
 import { inputClass, labelClass, cardClass, buttonPrimaryClass } from "@/components/ui/classNames";
 
 type Template = {
@@ -12,7 +12,9 @@ type Template = {
   background: string;
   version: number;
   isActive: boolean;
+  organizationId: { _id: string; name: string } | null;
 };
+type Organization = { _id: string; name: string };
 
 // Reference layout calibrated directly against the actual GD Goenka University
 // skill-competency background image at its real 960x720 size (Name / Son of /
@@ -88,12 +90,14 @@ function readImageSize(file: File): Promise<{ width: number; height: number }> {
   });
 }
 
-export default function TemplatesPage() {
+export default function SuperAdminTemplatesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [organizationId, setOrganizationId] = useState("");
   const [name, setName] = useState("");
   const [background, setBackground] = useState<File | null>(null);
   const [backgroundSize, setBackgroundSize] = useState<{ width: number; height: number } | null>(null);
@@ -106,9 +110,14 @@ export default function TemplatesPage() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/organization/templates");
-    const data = await res.json();
-    setTemplates(data.templates ?? []);
+    const [templatesRes, orgsRes] = await Promise.all([
+      fetch("/api/organization/templates"),
+      fetch("/api/super-admin/organizations"),
+    ]);
+    const templatesData = await templatesRes.json();
+    const orgsData = await orgsRes.json();
+    setTemplates(templatesData.templates ?? []);
+    setOrganizations(orgsData.organizations ?? []);
     setLoading(false);
   }
 
@@ -142,10 +151,15 @@ export default function TemplatesPage() {
       setError("Please choose a background image/PDF");
       return;
     }
+    if (!organizationId) {
+      setError("Please choose an organization");
+      return;
+    }
     setSubmitting(true);
 
     const formData = new FormData();
     formData.append("name", name);
+    formData.append("organizationId", organizationId);
     formData.append("background", background);
     formData.append("qrPosition", includeQr ? JSON.stringify(qrPosition) : "null");
     formData.append("photoPosition", JSON.stringify(photoPosition));
@@ -170,7 +184,7 @@ export default function TemplatesPage() {
   }
 
   return (
-    <DashboardShell title="Certificate Templates" nav={ORG_ADMIN_NAV}>
+    <DashboardShell title="Certificate Templates (all organizations)" nav={SUPER_ADMIN_NAV}>
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className={cardClass}>
           <h2 className="mb-4 font-medium text-zinc-900 dark:text-zinc-50">Existing Templates</h2>
@@ -194,7 +208,9 @@ export default function TemplatesPage() {
                   <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
                     {template.name}
                   </p>
-                  <p className="text-xs text-zinc-500">v{template.version}</p>
+                  <p className="text-xs text-zinc-500">
+                    {template.organizationId?.name ?? "-"} &middot; v{template.version}
+                  </p>
                 </div>
               ))}
             </div>
@@ -203,6 +219,21 @@ export default function TemplatesPage() {
 
         <form onSubmit={handleSubmit} className={cardClass}>
           <h2 className="mb-4 font-medium text-zinc-900 dark:text-zinc-50">Upload Template</h2>
+
+          <label className={labelClass}>Organization</label>
+          <select
+            required
+            className={`${inputClass} mb-3`}
+            value={organizationId}
+            onChange={(e) => setOrganizationId(e.target.value)}
+          >
+            <option value="">Select organization</option>
+            {organizations.map((org) => (
+              <option key={org._id} value={org._id}>
+                {org.name}
+              </option>
+            ))}
+          </select>
 
           <label className={labelClass}>Name</label>
           <input

@@ -35,7 +35,7 @@ const MATRIX: Record<Role, Partial<Record<Action, Grant>>> = {
     ASSIGN_EXCEL: true,
     CREATE_CANDIDATE: false, // candidates only ever come from Excel import, never manual entry
     EDIT_CANDIDATE: false,
-    UPLOAD_PHOTO: false,
+    UPLOAD_PHOTO: true,
     GENERATE_PDF: true,
     DOWNLOAD_ZIP: true,
     VERIFY_CERTIFICATE: true,
@@ -51,7 +51,7 @@ const MATRIX: Record<Role, Partial<Record<Action, Grant>>> = {
     ASSIGN_EXCEL: "own-batch",
     CREATE_CANDIDATE: false, // even Org Admin doesn't hand-create candidates -- import only
     EDIT_CANDIDATE: false,
-    UPLOAD_PHOTO: false,
+    UPLOAD_PHOTO: "own-batch",
     GENERATE_PDF: "own-batch",
     DOWNLOAD_ZIP: "own-batch",
     VERIFY_CERTIFICATE: true,
