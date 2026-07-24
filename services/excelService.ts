@@ -71,6 +71,22 @@ export async function importCandidatesFromExcel(params: {
 
   const colIndex = (name: string) => headers.indexOf(name);
 
+  // Excel lets a "date" column contain almost anything (text in a locale
+  // format, a stray note, a serial number exceljs couldn't resolve). Fail
+  // loudly with the exact row/column/value rather than letting an
+  // unparseable value reach Mongoose as a cryptic CastError deep in
+  // insertMany, after other rows may have already been queued.
+  function parseDate(value: unknown, fieldLabel: string, rowNumber: number, certificateNo: string): Date | null {
+    if (value === null || value === undefined || value === "") return null;
+    const date = value instanceof Date ? value : new Date(value as string | number);
+    if (Number.isNaN(date.getTime())) {
+      throw new Error(
+        `Row ${rowNumber} (Certificate No "${certificateNo}"): "${fieldLabel}" value "${String(value)}" is not a valid date. Use an actual date cell in Excel, or a format like DD-MM-YYYY.`
+      );
+    }
+    return date;
+  }
+
   const rows: Array<Record<string, unknown>> = [];
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return; // header
@@ -84,14 +100,14 @@ export async function importCandidatesFromExcel(params: {
       certificateNo,
       name: String(get("Name") ?? "").trim(),
       fatherName: String(get("Father Name") ?? "").trim(),
-      dob: get("DOB") ? new Date(get("DOB") as string) : null,
+      dob: parseDate(get("DOB"), "DOB", rowNumber, certificateNo),
       enrollmentNo: String(get("Enrolment No") ?? "").trim(),
       course: String(get("Course") ?? "").trim(),
       duration: String(get("Duration") ?? "").trim(),
       grade: String(get("Grade") ?? "").trim(),
-      startDate: get("Start Date") ? new Date(get("Start Date") as string) : null,
-      endDate: get("End Date") ? new Date(get("End Date") as string) : null,
-      issueDate: get("Issue Date") ? new Date(get("Issue Date") as string) : null,
+      startDate: parseDate(get("Start Date"), "Start Date", rowNumber, certificateNo),
+      endDate: parseDate(get("End Date"), "End Date", rowNumber, certificateNo),
+      issueDate: parseDate(get("Issue Date"), "Issue Date", rowNumber, certificateNo),
       remarks: String(get("Remarks") ?? "").trim(),
       verificationId: generateVerificationId(),
       // photo/generated/pdf fields intentionally omitted -- default empty until
