@@ -78,13 +78,35 @@ export async function importCandidatesFromExcel(params: {
   // insertMany, after other rows may have already been queued.
   function parseDate(value: unknown, fieldLabel: string, rowNumber: number, certificateNo: string): Date | null {
     if (value === null || value === undefined || value === "") return null;
-    const date = value instanceof Date ? value : new Date(value as string | number);
-    if (Number.isNaN(date.getTime())) {
-      throw new Error(
-        `Row ${rowNumber} (Certificate No "${certificateNo}"): "${fieldLabel}" value "${String(value)}" is not a valid date. Use an actual date cell in Excel, or a format like DD-MM-YYYY.`
-      );
+
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+
+    if (typeof value === "string" || typeof value === "number") {
+      const raw = String(value).trim();
+
+      // DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY -- the day-first format Excel
+      // users actually type. JS's native Date parser assumes MM/DD/YYYY for
+      // slash-separated dates, which either rejects day-first values outright
+      // (day > 12, e.g. "23/07/2026") or silently misreads ambiguous ones
+      // (e.g. "07/08/2026" meant as 7 Aug, natively parsed as 8 Jul) -- so
+      // this day-first parse is checked before any native fallback.
+      const dmy = raw.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
+      if (dmy) {
+        const [, d, m, y] = dmy;
+        const date = new Date(Number(y), Number(m) - 1, Number(d));
+        if (date.getFullYear() === Number(y) && date.getMonth() === Number(m) - 1 && date.getDate() === Number(d)) {
+          return date;
+        }
+      } else {
+        // ISO strings, "July 23, 2026", Excel serial numbers, etc.
+        const fallback = new Date(raw);
+        if (!Number.isNaN(fallback.getTime())) return fallback;
+      }
     }
-    return date;
+
+    throw new Error(
+      `Row ${rowNumber} (Certificate No "${certificateNo}"): "${fieldLabel}" value "${String(value)}" is not a valid date. Use an actual date cell in Excel, or a format like DD-MM-YYYY.`
+    );
   }
 
   const rows: Array<Record<string, unknown>> = [];
