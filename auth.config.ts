@@ -5,6 +5,10 @@ import { ROUTE_ROLE_MAP } from "@/lib/permissions";
 // Node runtime). middleware.ts only needs the `authorized` callback below,
 // so it imports this file directly instead of the full auth.ts.
 export const authConfig: NextAuthConfig = {
+  // Required behind a reverse proxy (Traefik/Dokploy, Nginx, etc.) -- without
+  // this, Auth.js rejects every request's Host header as untrusted, since it
+  // can't otherwise tell a legitimate proxied request from a spoofed one.
+  trustHost: true,
   pages: {
     signIn: "/login",
   },
