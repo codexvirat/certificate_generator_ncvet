@@ -29,7 +29,7 @@ const REF_SIGNATURE = { x: 690, y: 140, width: 218, height: 60 };
 const REF_TEXT_FIELDS = [
   { key: "CERTIFICATE_NO", x: 765, y: 492, fontSize: 15, align: "left" as const },
   { key: "NAME", x: 270, y: 446, fontSize: 20, align: "left" as const },
-  { key: "FATHER_NAME", x: 135, y: 399, fontSize: 17, align: "left" as const },
+  { key: "FATHER_NAME", x: 160, y: 399, fontSize: 17, align: "left" as const },
   { key: "DOB", x: 515, y: 399, fontSize: 17, align: "left" as const },
   { key: "ENROLLMENT_NO", x: 778, y: 399, fontSize: 17, align: "left" as const },
   { key: "COURSE", x: 520, y: 356, fontSize: 17, align: "left" as const },
