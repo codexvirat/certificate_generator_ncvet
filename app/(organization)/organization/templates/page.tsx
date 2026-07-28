@@ -6,10 +6,25 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { ORG_ADMIN_NAV } from "@/components/dashboard/nav";
 import { inputClass, labelClass, cardClass, buttonPrimaryClass } from "@/components/ui/classNames";
 
+type Position = { x: number; y: number; width?: number; height?: number; size?: number };
+type TextField = {
+  key: string;
+  x: number;
+  y: number;
+  fontSize?: number;
+  fontColor?: string;
+  fontFamily?: string;
+  align?: "left" | "center" | "right";
+};
 type Template = {
   _id: string;
   name: string;
   background: string;
+  signature: string | null;
+  qrPosition: Position | null;
+  photoPosition: Position;
+  signaturePosition: Position | null;
+  textFields: TextField[];
   version: number;
   isActive: boolean;
 };
@@ -93,15 +108,17 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [background, setBackground] = useState<File | null>(null);
   const [backgroundSize, setBackgroundSize] = useState<{ width: number; height: number } | null>(null);
   const [signature, setSignature] = useState<File | null>(null);
+  const [existingSignatureUrl, setExistingSignatureUrl] = useState<string | null>(null);
   const [includeQr, setIncludeQr] = useState(true);
-  const [qrPosition, setQrPosition] = useState(REF_QR);
-  const [photoPosition, setPhotoPosition] = useState(REF_PHOTO);
-  const [signaturePosition, setSignaturePosition] = useState(REF_SIGNATURE);
+  const [qrPosition, setQrPosition] = useState<Position>(REF_QR);
+  const [photoPosition, setPhotoPosition] = useState<Position>(REF_PHOTO);
+  const [signaturePosition, setSignaturePosition] = useState<Position>(REF_SIGNATURE);
   const [textFields, setTextFields] = useState(JSON.stringify(REF_TEXT_FIELDS, null, 2));
 
   async function load() {
@@ -135,10 +152,40 @@ export default function TemplatesPage() {
     }
   }
 
+  function startEdit(template: Template) {
+    setEditingId(template._id);
+    setError(null);
+    setName(template.name);
+    setBackground(null);
+    setBackgroundSize(null);
+    setSignature(null);
+    setExistingSignatureUrl(template.signature);
+    setIncludeQr(!!template.qrPosition);
+    setQrPosition(template.qrPosition ?? REF_QR);
+    setPhotoPosition(template.photoPosition);
+    setSignaturePosition(template.signaturePosition ?? REF_SIGNATURE);
+    setTextFields(JSON.stringify(template.textFields, null, 2));
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setError(null);
+    setName("");
+    setBackground(null);
+    setBackgroundSize(null);
+    setSignature(null);
+    setExistingSignatureUrl(null);
+    setIncludeQr(true);
+    setQrPosition(REF_QR);
+    setPhotoPosition(REF_PHOTO);
+    setSignaturePosition(REF_SIGNATURE);
+    setTextFields(JSON.stringify(REF_TEXT_FIELDS, null, 2));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!background) {
+    if (!editingId && !background) {
       setError("Please choose a background image/PDF");
       return;
     }
@@ -146,26 +193,28 @@ export default function TemplatesPage() {
 
     const formData = new FormData();
     formData.append("name", name);
-    formData.append("background", background);
+    if (background) formData.append("background", background);
     formData.append("qrPosition", includeQr ? JSON.stringify(qrPosition) : "null");
     formData.append("photoPosition", JSON.stringify(photoPosition));
     formData.append("textFields", textFields);
     if (signature) {
       formData.append("signature", signature);
       formData.append("signaturePosition", JSON.stringify(signaturePosition));
+    } else if (editingId && existingSignatureUrl) {
+      formData.append("signaturePosition", JSON.stringify(signaturePosition));
     }
 
-    const res = await fetch("/api/organization/templates", { method: "POST", body: formData });
+    const res = await fetch(
+      editingId ? `/api/organization/templates/${editingId}` : "/api/organization/templates",
+      { method: editingId ? "PATCH" : "POST", body: formData }
+    );
     setSubmitting(false);
     if (!res.ok) {
       const data = await res.json();
-      setError(data.error ?? "Failed to upload template");
+      setError(data.error ?? "Failed to save template");
       return;
     }
-    setName("");
-    setBackground(null);
-    setBackgroundSize(null);
-    setSignature(null);
+    cancelEdit();
     load();
   }
 
@@ -194,7 +243,16 @@ export default function TemplatesPage() {
                   <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
                     {template.name}
                   </p>
-                  <p className="text-xs text-zinc-500">v{template.version}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-zinc-500">v{template.version}</p>
+                    <button
+                      type="button"
+                      onClick={() => startEdit(template)}
+                      className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                    >
+                      Edit
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -202,7 +260,20 @@ export default function TemplatesPage() {
         </div>
 
         <form onSubmit={handleSubmit} className={cardClass}>
-          <h2 className="mb-4 font-medium text-zinc-900 dark:text-zinc-50">Upload Template</h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-medium text-zinc-900 dark:text-zinc-50">
+              {editingId ? "Edit Template" : "Upload Template"}
+            </h2>
+            {editingId && (
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="text-xs font-medium text-zinc-500 hover:underline"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
 
           <label className={labelClass}>Name</label>
           <input
@@ -212,9 +283,11 @@ export default function TemplatesPage() {
             onChange={(e) => setName(e.target.value)}
           />
 
-          <label className={labelClass}>Background Image</label>
+          <label className={labelClass}>
+            Background Image {editingId && "(leave empty to keep current image)"}
+          </label>
           <input
-            required
+            required={!editingId}
             type="file"
             accept="image/*"
             className={`${inputClass} mb-1`}
@@ -223,7 +296,9 @@ export default function TemplatesPage() {
           <p className="mb-3 text-xs text-zinc-500">
             {backgroundSize
               ? `Detected ${backgroundSize.width} x ${backgroundSize.height}px -- positions below were auto-scaled to match.`
-              : "Positions below auto-scale to whatever image you choose."}
+              : editingId
+                ? "Adjust the positions below and save -- already-assigned batches pick up the change on their next certificate generation."
+                : "Positions below auto-scale to whatever image you choose."}
           </p>
 
           <label className="mb-3 flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
@@ -289,7 +364,9 @@ export default function TemplatesPage() {
             />
           </div>
 
-          <label className={labelClass}>Signature Image (optional)</label>
+          <label className={labelClass}>
+            Signature Image (optional) {editingId && "-- leave empty to keep current signature"}
+          </label>
           <input
             type="file"
             accept="image/*"
@@ -297,7 +374,7 @@ export default function TemplatesPage() {
             onChange={(e) => setSignature(e.target.files?.[0] ?? null)}
           />
 
-          {signature && (
+          {(signature || existingSignatureUrl) && (
             <>
               <p className={labelClass}>Signature Position (x, y, width, height)</p>
               <div className="mb-3 grid grid-cols-4 gap-2">
@@ -348,7 +425,7 @@ export default function TemplatesPage() {
           {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
           <button type="submit" disabled={submitting} className={`${buttonPrimaryClass} w-full`}>
-            {submitting ? "Uploading..." : "Upload Template"}
+            {submitting ? "Saving..." : editingId ? "Save Changes" : "Upload Template"}
           </button>
         </form>
       </div>
